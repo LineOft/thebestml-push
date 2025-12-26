@@ -3,21 +3,32 @@
 
 const admin = require('firebase-admin');
 
-// Firebase Admin SDK başlat (environment variables'dan)
+// Firebase Service Account - Base64 encoded (güvenlik için)
+// Environment variable'dan veya sabit değerden al
+const SERVICE_ACCOUNT_B64 = process.env.FIREBASE_SERVICE_ACCOUNT_B64 || '';
+
+// API Key (güvenlik için)
+const API_KEY = process.env.API_KEY || "thebestml_push_secret_2024";
+
+// Firebase Admin SDK başlat
 let firebaseApp;
 
 function initializeFirebase() {
     if (!firebaseApp) {
         try {
-            const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
+            let serviceAccountData;
             
-            if (!serviceAccount.project_id) {
+            // Base64 encoded service account varsa decode et
+            if (SERVICE_ACCOUNT_B64) {
+                const decoded = Buffer.from(SERVICE_ACCOUNT_B64, 'base64').toString('utf8');
+                serviceAccountData = JSON.parse(decoded);
+            } else {
                 console.error('Firebase service account bulunamadı');
                 return false;
             }
             
             firebaseApp = admin.initializeApp({
-                credential: admin.credential.cert(serviceAccount)
+                credential: admin.credential.cert(serviceAccountData)
             });
             console.log('Firebase Admin başlatıldı');
         } catch (e) {
@@ -44,7 +55,7 @@ module.exports = async (req, res) => {
     
     // API Key doğrulama
     const apiKey = req.headers['x-api-key'];
-    if (apiKey !== process.env.API_KEY) {
+    if (apiKey !== API_KEY) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
     
