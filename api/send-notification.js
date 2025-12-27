@@ -86,7 +86,24 @@ module.exports = async (req, res) => {
     }
     
     try {
-        const { token, tokens, title, body, data, topic, all, dryRun } = req.body;
+        // Vercel runtime bazen req.body'yi string/buffer olarak verebilir.
+        // Burada normalize edip güvenli şekilde parse ediyoruz.
+        let bodyObj = req.body;
+        if (Buffer.isBuffer(bodyObj)) {
+            bodyObj = bodyObj.toString('utf8');
+        }
+        if (typeof bodyObj === 'string') {
+            try {
+                bodyObj = JSON.parse(bodyObj);
+            } catch (e) {
+                return res.status(400).json({ error: 'Invalid JSON' });
+            }
+        }
+        if (!bodyObj || typeof bodyObj !== 'object') {
+            return res.status(400).json({ error: 'Invalid JSON' });
+        }
+
+        const { token, tokens, title, body, data, topic, all, dryRun } = bodyObj;
         
         if (!title || !body) {
             return res.status(400).json({ error: 'title ve body zorunlu' });
