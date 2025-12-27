@@ -153,15 +153,50 @@ module.exports = async (req, res) => {
 
         // Server-side: tüm kullanıcılara gönder (Firestore'dan token çek)
         if (all === true) {
-            const snapshot = await admin.firestore().collection('users').get();
             const allTokens = [];
+            const usersRef = admin.firestore().collection('users');
 
-            snapshot.forEach(doc => {
-                const d = doc.data() || {};
-                if (d.fcmToken && typeof d.fcmToken === 'string' && d.fcmToken.length > 20) {
-                    allTokens.push(d.fcmToken);
+            // Büyük koleksiyonlarda tek seferde çekmek quota/limit hatasına yol açabiliyor.
+            // Bu yüzden sayfalıyoruz. Mümkünse sadece token olanları okuyoruz.
+            const docId = admin.firestore.FieldPath.documentId();
+
+            async function pageQuery(withHasTokenFilter) {
+                let query = usersRef;
+                if (withHasTokenFilter) {
+                    query = query.where('hasFcmToken', '==', true);
                 }
-            });
+                query = query.orderBy(docId).limit(500);
+
+                let lastDoc = null;
+                let page = 0;
+                while (true) {
+                    let q = query;
+                    if (lastDoc) q = q.startAfter(lastDoc);
+
+                    const snap = await q.get();
+                    if (snap.empty) break;
+
+                    snap.forEach(doc => {
+                        const d = doc.data() || {};
+                        if (d.fcmToken && typeof d.fcmToken === 'string' && d.fcmToken.length > 20) {
+                            allTokens.push(d.fcmToken);
+                        }
+                    });
+
+                    lastDoc = snap.docs[snap.docs.length - 1];
+                    page++;
+                    if (page > 10000) break; // güvenlik: sonsuz döngü engeli
+                }
+            }
+
+            try {
+                await pageQuery(true);
+            } catch (e) {
+                // Index veya query limitleri yüzünden filtre çalışmazsa, filtresiz devam et.
+                console.warn('hasFcmToken filtreli sorgu başarısız, filtresiz deneniyor:', e.message);
+                allTokens.length = 0;
+                await pageQuery(false);
+            }
 
             const uniqueTokens = Array.from(new Set(allTokens));
             if (uniqueTokens.length === 0) {
