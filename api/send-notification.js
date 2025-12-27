@@ -86,7 +86,7 @@ module.exports = async (req, res) => {
     }
     
     try {
-        const { token, tokens, title, body, data, topic, all } = req.body;
+        const { token, tokens, title, body, data, topic, all, dryRun } = req.body;
         
         if (!title || !body) {
             return res.status(400).json({ error: 'title ve body zorunlu' });
@@ -169,6 +169,17 @@ module.exports = async (req, res) => {
                     success: false,
                     error: 'No tokens',
                     message: 'FCM token\'ı olan kullanıcı yok'
+                });
+            }
+
+            // dryRun: bildirim göndermeden yalnızca token sayısını döndür
+            if (dryRun === true) {
+                return res.status(200).json({
+                    success: true,
+                    message: 'dryRun: token listesi hazır',
+                    audience: 'all',
+                    dryRun: true,
+                    totalTokens: uniqueTokens.length
                 });
             }
 
